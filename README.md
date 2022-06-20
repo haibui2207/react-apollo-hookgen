@@ -15,6 +15,10 @@ Generate react hooks from graphql files for reusing
 **Optional**
 - [ ] Custom template
 - [ ] Format file with prettier
+- [ ] Dynamic destination directory
+- [ ] Support terminal-link npm
+- [ ] Console log see better
+- [ ] Detect apollo generated files location
 
 **Arguments**
 - [ ] graphql pattern: `/src/**/*.graphql`
