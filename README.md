@@ -5,24 +5,25 @@ Generate react hooks from graphql files for reusing
 
 # TODO
 
-- [ ] Combine with apollo codegen
+- [X] Combine with apollo codegen
 - [ ] Support typescript
-- [ ] Support javascript
-- [ ] Create templates for javascript
+- [X] Support javascript
+- [X] Create templates for javascript
 - [ ] Create templates for typescript
-- [ ] Support `.graphql`, `gql`
+- [X] Support `.graphql`
+- [ ] Support `.gql`
 
 **Optional**
-- [ ] Custom template
-- [ ] Format file with prettier
+- [X] Custom template
+- [X] Format file with prettier
 - [ ] Dynamic destination directory
 - [ ] Support terminal-link npm
 - [ ] Console log see better
 - [ ] Detect apollo generated files location
 
 **Arguments**
-- [ ] graphql pattern: `/src/**/*.graphql`
-- [ ] prettier config file: `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `.prettierrc.yaml`
+- [X] graphql pattern: `/src/**/*.graphql`
+- [X] prettier config file: `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `.prettierrc.yaml`
 A .prettierrc.js
 
 **Run command**
