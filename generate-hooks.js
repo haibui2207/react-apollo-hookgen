@@ -46,7 +46,9 @@ glob(pattern, {}, (err, files) => {
       const operation = document.definitions[0].operation; // query | mutation | undefined
       const hasVariables = !!document.definitions[0].variableDefinitions?.length;
       // Allow same graphql schema but different selected fields
-      const selectionName = document.definitions[0].selectionSet.selections[0].name.value;
+      const selectionNames = document.definitions[0].selectionSet.selections.map((item) => item.name.value);
+      const selectionName =
+        operationName && selectionNames.includes(lowerCase(operationName)) ? operationName : selectionNames[0];
 
       createHookFile(operation, operationName, selectionName, file, hasVariables);
     });
