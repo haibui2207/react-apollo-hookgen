@@ -5,20 +5,16 @@
  */
 const fs = require('fs');
 const path = require('path');
-const argv = require('optimist').argv;
 const glob = require('glob');
 const prettier = require('prettier');
 
 // Input arguments
-const prettierConfigFile = argv.prettier || '.prettierrc'; // --prettier
 const graphqlSchemaDir = 'src/lib/__generated__'; // Directory contains graphQL Schema
 const fileExtension = 'ts'; // ts | js
 const indexFileName = `index.${fileExtension}`;
 const pattern = `${graphqlSchemaDir}/*.${fileExtension}`;
 const indexFilePath = path.resolve(graphqlSchemaDir, indexFileName);
 const tempIndexFileContent = [];
-const prettierConfigs = prettier.resolveConfig.sync(path.resolve(prettierConfigFile));
-prettierConfigs.parser = fileExtension === 'ts' ? 'typescript' : 'babel';
 
 glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] }, (err, files) => {
   if (err) throw err;
@@ -35,7 +31,7 @@ glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] }, (err, files)
   }
 
   files.forEach((file, index) => {
-    fs.readFile(file, 'utf8', err => {
+    fs.readFile(file, 'utf8', (err) => {
       if (err) throw err;
 
       saveIndexFileContent(file);
@@ -47,19 +43,26 @@ glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] }, (err, files)
   });
 });
 
-const writeFileWithPrettier = (filePath, fileContent) => {
-  fs.writeFileSync(filePath, prettier.format(fileContent, prettierConfigs));
+const writeFileWithPrettier = async (filePath, fileContent) => {
+  const configFilePath = await prettier.resolveConfigFile(process.cwd());
+  const options = await prettier.resolveConfig(configFilePath);
+  const formattedCode = await prettier.format(fileContent, {
+    parser: fileExtension === 'ts' ? 'typescript' : 'babel',
+    ...options
+  });
+
+  fs.writeFileSync(filePath, formattedCode);
 };
 
-const saveIndexFileContent = file => {
+const saveIndexFileContent = async (file) => {
   const fileName = path.basename(file, `.${fileExtension}`);
   const content = `export * from './${fileName}';`;
   tempIndexFileContent.push(content);
 
   // Sort to keep index file not changed
   tempIndexFileContent
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) // Sort by alphabel
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) // Sort by alphabet
     .sort((a, b) => a.length - b.length); // Sort by length
 
-  writeFileWithPrettier(indexFilePath, tempIndexFileContent.join(''));
+  await writeFileWithPrettier(indexFilePath, tempIndexFileContent.join(''));
 };
