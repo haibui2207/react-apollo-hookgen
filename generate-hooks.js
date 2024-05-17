@@ -17,14 +17,11 @@ const { getOperationName } = require('@apollo/client/utilities');
 // Input arguments
 const pattern = argv.pattern || 'src/**/*.graphql'; // --pattern
 const hookFilePrefix = argv.prefix || 'use';
-const prettierConfigFile = argv.prettier || '.prettierrc'; // --prettier
 const destinationDir = '../hooks'; // Destination directory which inside the pattern folder
 const fileExtension = 'ts'; // ts | js
 const skipAbsoluteOperationName = true; // Skip generate if operationName not match with fileName
 
 const tempIndexFileContent = [];
-const prettierConfigs = prettier.resolveConfig.sync(path.resolve(prettierConfigFile));
-prettierConfigs.parser = fileExtension === 'ts' ? 'typescript' : 'babel';
 
 glob(pattern, {}, (err, files) => {
   if (err) throw err;
@@ -33,33 +30,38 @@ glob(pattern, {}, (err, files) => {
     console.log('Files not found');
   }
 
-  removeHooksDir();
-
   console.log('Generating...');
 
-  files.forEach((file) => {
-    fs.readFile(file, 'utf8', (err, data) => {
-      if (err) throw err;
+  removeHooksDir();
 
-      const document = graphql.parse(data);
-      const operationName = getOperationName(document);
-      const operation = document.definitions[0].operation; // query | mutation | undefined
-      const hasVariables = !!document.definitions[0].variableDefinitions?.length;
-      // Allow same graphql schema but different selected fields
-      const selectionNames = document.definitions[0].selectionSet.selections.map((item) => item.name.value);
-      const selectionName =
-        operationName && selectionNames.includes(lowerCase(operationName)) ? operationName : selectionNames[0];
+  loadPrettier()
+    .then((formatOptions) =>
+      Promise.all(
+        files.map((file) => {
+          fs.readFile(file, 'utf8', (err, data) => {
+            if (err) throw err;
+            const document = graphql.parse(data);
+            const operationName = getOperationName(document);
+            const operation = document.definitions[0].operation; // query | mutation | undefined
+            const hasVariables = !!document.definitions[0].variableDefinitions?.length;
+            // Allow same graphql schema but different selected fields
+            const selectionNames = document.definitions[0].selectionSet.selections.map((item) => item.name.value);
+            const selectionName =
+              operationName && selectionNames.includes(lowerCase(operationName)) ? operationName : selectionNames[0];
 
-      createHookFile(operation, operationName, selectionName, file, hasVariables);
+            return createHookFile(operation, operationName, selectionName, file, hasVariables, formatOptions);
+          });
+        })
+      )
+    )
+    .finally(() => {
+      process.on('exit', () => {
+        console.log('Finish');
+      });
     });
-  });
-
-  process.on('exit', () => {
-    console.log('Finish');
-  });
 });
 
-const createHookFile = (operation, operationName, selectionName, file, hasVariables) => {
+const createHookFile = async (operation, operationName, selectionName, file, hasVariables, formatOptions) => {
   let template;
   const fileName = path.basename(file, '.graphql');
 
@@ -98,8 +100,8 @@ const createHookFile = (operation, operationName, selectionName, file, hasVariab
     .replaceAll('<operationName>', operationName)
     .replaceAll('<selectionNameArgs>', lowerCase(selectionName));
 
-  writeFileWithPrettier(hookFilePath, hookFileContent);
-  saveIndexFileContent(hookIndexFilePath, hookFileName);
+  await writeFileWithPrettier(hookFilePath, hookFileContent, formatOptions);
+  await saveIndexFileContent(hookIndexFilePath, hookFileName, formatOptions);
 };
 
 const createHooksDir = (file) => {
@@ -118,19 +120,29 @@ const removeHooksDir = () => {
   rimraf.sync(path.join(dir, destinationDir));
 };
 
-const writeFileWithPrettier = (filePath, fileContent) => {
-  fs.writeFileSync(filePath, prettier.format(fileContent, prettierConfigs));
+const loadPrettier = async () => {
+  const configFilePath = await prettier.resolveConfigFile(process.cwd());
+  const options = await prettier.resolveConfig(configFilePath);
+
+  return {
+    parser: fileExtension === 'ts' ? 'typescript' : 'babel',
+    ...options
+  };
 };
 
-const saveIndexFileContent = (filePath, fileName) => {
-  const content = `export * from './${fileName}';`;
-  tempIndexFileContent.push(content);
-  // Sort to keep index file not changed
+const writeFileWithPrettier = async (filePath, fileContent, formatOptions) => {
+  const formattedCode = await prettier.format(fileContent, formatOptions);
+  await fs.promises.writeFile(filePath, formattedCode);
+};
+
+const saveIndexFileContent = async (filePath, fileName, formatOptions) => {
+  tempIndexFileContent.push(`export * from './${fileName}';`);
+  // Sort to keep index file less changed as much as possible
   tempIndexFileContent
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) // Sort by alphabel
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) // Sort by alphabet
     .sort((a, b) => a.length - b.length); // Sort by length
 
-  writeFileWithPrettier(filePath, tempIndexFileContent.join(''));
+  await writeFileWithPrettier(filePath, tempIndexFileContent.join(''), formatOptions);
 };
 
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.substring(1);
