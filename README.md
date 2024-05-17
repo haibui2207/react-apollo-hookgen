@@ -26,10 +26,6 @@ Generate react hooks from graphql files for reusing
 - [X] prettier config file: `.prettierrc`, `.prettierrc.json`, `.prettierrc.yml`, `.prettierrc.yaml`
 A .prettierrc.js
 
-**Run command**
-
-    react-apollo-hookgen --pattern=./src/**/*.graphql --prettier=./.prettierrc
-    
 Options:
 
   --pattern: optional
@@ -41,7 +37,13 @@ Options:
   --dir-des: optional
     Directory where save generated files. Default `__generated__`
 
+**Scripts**
 
+    "scripts": {
+        "codegen": "gql-gen --config codegen.config.ts --prettier=./.prettierrc",
+        "generate-hooks": "node generate-hooks.js --pattern=./src/lib/**/*.graphql --prettier=./.prettierrc && npm run generate-graphql-index",
+        "generate-graphql-index": "node generate-graphql-index.js --prettier=./.prettierrc"
+    },
 
 ### Templates
  - [ ] query, lazy query - no variables
