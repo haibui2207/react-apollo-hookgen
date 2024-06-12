@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const argv = require('optimist').argv;
-const glob = require('glob');
+const { glob } = require('glob');
 const prettier = require('prettier');
 const graphql = require('graphql');
 const rimraf = require('rimraf');
@@ -23,43 +23,45 @@ const skipAbsoluteOperationName = true; // Skip generate if operationName not ma
 
 const tempIndexFileContent = [];
 
-glob(pattern, {}, (err, files) => {
-  if (err) throw err;
+glob(pattern, {})
+  .then((files) => {
+    if (files.length === 0) {
+      throw new Error('Files not found');
+    }
 
-  if (files.length === 0) {
-    console.log('Files not found');
-  }
+    console.log('Generating...');
 
-  console.log('Generating...');
+    removeHooksDir();
 
-  removeHooksDir();
+    loadPrettier()
+      .then((formatOptions) =>
+        Promise.all(
+          files.map((file) => {
+            fs.readFile(file, 'utf8', (err, data) => {
+              if (err) throw err;
+              const document = graphql.parse(data);
+              const operationName = getOperationName(document);
+              const operation = document.definitions[0].operation; // query | mutation | undefined
+              const hasVariables = !!document.definitions[0].variableDefinitions?.length;
+              // Allow same graphql schema but different selected fields
+              const selectionNames = document.definitions[0].selectionSet.selections.map((item) => item.name.value);
+              const selectionName =
+                operationName && selectionNames.includes(lowerCase(operationName)) ? operationName : selectionNames[0];
 
-  loadPrettier()
-    .then((formatOptions) =>
-      Promise.all(
-        files.map((file) => {
-          fs.readFile(file, 'utf8', (err, data) => {
-            if (err) throw err;
-            const document = graphql.parse(data);
-            const operationName = getOperationName(document);
-            const operation = document.definitions[0].operation; // query | mutation | undefined
-            const hasVariables = !!document.definitions[0].variableDefinitions?.length;
-            // Allow same graphql schema but different selected fields
-            const selectionNames = document.definitions[0].selectionSet.selections.map((item) => item.name.value);
-            const selectionName =
-              operationName && selectionNames.includes(lowerCase(operationName)) ? operationName : selectionNames[0];
-
-            return createHookFile(operation, operationName, selectionName, file, hasVariables, formatOptions);
-          });
-        })
+              return createHookFile(operation, operationName, selectionName, file, hasVariables, formatOptions);
+            });
+          })
+        )
       )
-    )
-    .finally(() => {
-      process.on('exit', () => {
-        console.log('Finish');
+      .finally(() => {
+        process.on('exit', () => {
+          console.log('Finish');
+        });
       });
-    });
-});
+  })
+  .catch((error) => {
+    throw error;
+  });
 
 const createHookFile = async (operation, operationName, selectionName, file, hasVariables, formatOptions) => {
   let template;
