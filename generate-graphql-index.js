@@ -5,7 +5,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const glob = require('glob');
+const { glob } = require('glob');
 const prettier = require('prettier');
 
 // Input arguments
@@ -16,32 +16,34 @@ const pattern = `${graphqlSchemaDir}/*.${fileExtension}`;
 const indexFilePath = path.resolve(graphqlSchemaDir, indexFileName);
 const tempIndexFileContent = [];
 
-glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] }, (err, files) => {
-  if (err) throw err;
+glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] })
+  .then((files) => {
+    if (files.length === 0) {
+      console.log('Files not found. You need to generate graphQL Schema first.');
+    }
 
-  if (files.length === 0) {
-    console.log('Files not found. You need to generate graphQL Schema first.');
-  }
+    console.log('Generating index file...');
 
-  console.log('Generating index file...');
+    // hard code to re-export from generate-hooks script
+    if (fs.existsSync(path.join(graphqlSchemaDir, 'hooks/index.ts'))) {
+      tempIndexFileContent.push(`export * from './hooks';`);
+    }
 
-  // hard code to re-export from generate-hooks script
-  if (fs.existsSync(path.join(graphqlSchemaDir, 'hooks/index.ts'))) {
-    tempIndexFileContent.push(`export * from './hooks';`);
-  }
+    files.forEach((file, index) => {
+      fs.readFile(file, 'utf8', (err) => {
+        if (err) throw err;
 
-  files.forEach((file, index) => {
-    fs.readFile(file, 'utf8', (err) => {
-      if (err) throw err;
-
-      saveIndexFileContent(file);
+        saveIndexFileContent(file);
+      });
     });
-  });
 
-  process.on('exit', () => {
-    console.log('Finish');
+    process.on('exit', () => {
+      console.log('Finish');
+    });
+  })
+  .catch((error) => {
+    throw error;
   });
-});
 
 const writeFileWithPrettier = async (filePath, fileContent) => {
   const configFilePath = await prettier.resolveConfigFile(process.cwd());
