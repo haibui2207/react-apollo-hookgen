@@ -9,37 +9,45 @@ const { glob } = require('glob');
 const prettier = require('prettier');
 
 // Input arguments
-const graphqlSchemaDir = 'src/lib/__generated__'; // Directory contains graphQL Schema
+const graphqlSchemaDir = 'src/lib/hooks'; // Directory contains graphQL Schema
 const fileExtension = 'ts'; // ts | js
 const indexFileName = `index.${fileExtension}`;
 const pattern = `${graphqlSchemaDir}/*.${fileExtension}`;
-const indexFilePath = path.resolve(graphqlSchemaDir, indexFileName);
+const indexFilePath = path.resolve(path.join(graphqlSchemaDir, indexFileName));
 const tempIndexFileContent = [];
 
-glob(pattern, { ignore: [`${graphqlSchemaDir}/${indexFileName}`] })
+glob(pattern, { ignore: [indexFilePath] })
   .then((files) => {
     if (files.length === 0) {
       console.log('Files not found. You need to generate graphQL Schema first.');
+
+      return;
     }
 
     console.log('Generating index file...');
 
-    // hard code to re-export from generate-hooks script
-    if (fs.existsSync(path.join(graphqlSchemaDir, 'hooks/index.ts'))) {
-      tempIndexFileContent.push(`export * from './hooks';`);
-    }
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            fs.readFile(file, 'utf8', (err) => {
+              if (err) {
+                console.error(err);
+                reject();
+              }
 
-    files.forEach((file, index) => {
-      fs.readFile(file, 'utf8', (err) => {
-        if (err) throw err;
-
-        saveIndexFileContent(file);
+              saveIndexFileContent(file);
+              resolve();
+            });
+          })
+      )
+    )
+      .then(() => writeFileWithPrettier(indexFilePath, tempIndexFileContent.join('')))
+      .finally(() => {
+        process.on('exit', () => {
+          console.log('Finish');
+        });
       });
-    });
-
-    process.on('exit', () => {
-      console.log('Finish');
-    });
   })
   .catch((error) => {
     throw error;
@@ -56,7 +64,7 @@ const writeFileWithPrettier = async (filePath, fileContent) => {
   fs.writeFileSync(filePath, formattedCode);
 };
 
-const saveIndexFileContent = async (file) => {
+const saveIndexFileContent = (file) => {
   const fileName = path.basename(file, `.${fileExtension}`);
   const content = `export * from './${fileName}';`;
   tempIndexFileContent.push(content);
@@ -65,6 +73,4 @@ const saveIndexFileContent = async (file) => {
   tempIndexFileContent
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())) // Sort by alphabet
     .sort((a, b) => a.length - b.length); // Sort by length
-
-  await writeFileWithPrettier(indexFilePath, tempIndexFileContent.join(''));
 };
